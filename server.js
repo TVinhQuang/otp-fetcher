@@ -13,6 +13,7 @@ console.log('=============================')
 
 // ✨ 2. Import các thư viện cần thiết
 const express      = require('express');     // Web framework
+const path = require('path');        // ✔️ Dùng để xử lý đường dẫn cho an toàn
 const bodyParser   = require('body-parser'); // Để parse JSON và form data
 const imaps        = require('imap-simple'); // Kết nối IMAP
 const { simpleParser } = require('mailparser'); // Parse MIME email
@@ -20,13 +21,20 @@ const { simpleParser } = require('mailparser'); // Parse MIME email
 // ✨ 3. Tạo app Express
 const app = express();
 
-// ✨ 4. Cấu hình middleware để đọc body
-app.use(bodyParser.json());                             
+// Dùng path.join để đảm bảo Express tìm đúng thư mục 'public'
+app.use(express.static(path.join(__dirname, 'public')));                           
+
+app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 
 // ✨ 5. Route test GET cơ bản
 app.get('/', (req, res) => {
   res.send('OTP Fetcher is running. POST /get-otp để lấy mã.');
+});
+
+// 2) Sau đó, nếu vẫn muốn GET / trả index.html
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // ✨ 6. Route POST /get-otp
@@ -99,5 +107,5 @@ app.post('/get-otp', async (req, res) => {
 // ✨ 7. Khởi động server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server is running at http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
