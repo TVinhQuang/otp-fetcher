@@ -1,0 +1,5 @@
+# Bỏ qua thư mục chứa thư viện Node.js
+node_modules/
+
+# Bỏ qua file chứa mật khẩu, token, API key
+.env
