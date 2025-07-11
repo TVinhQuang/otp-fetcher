@@ -105,23 +105,32 @@ app.post('/get-otp', async (req, res) => {
     // 6.6. Thực hiện tìm kiếm
     const messages = await connection.search(searchCriteria, fetchOptions);
 
-    // 6.7. Duyệt qua mail, parse và tìm OTP
-    for (let item of messages) {
-      const raw  = item.parts.find(p => p.which === '').body;
-      const parsed = await simpleParser(raw);     // tách text/plain
-      const text   = parsed.text || '';
-
-      // Regex tìm 6 chữ số liên tiếp
-      const match  = text.match(/\b\d{6}\b/);
-      if (match) {
-        await connection.end();                   // đóng kết nối IMAP
-        return res.json({ otp: match[0] });       // trả về JSON
-      }
+   // 1. Nếu không có message nào thì trả về lỗi
+    if (!messages || messages.length === 0) {
+      await connection.end();
+      return res.status(404).json({ error: 'Không tìm thấy mã OTP mới.' });
     }
 
-    // 6.8. Nếu không tìm thấy
+    // 2. Sắp xếp messages theo internalDate (hoặc attributes.date) giảm dần
+    messages.sort((a, b) => {
+      // với imap-simple, ngày nằm ở a.attributes.date
+      return b.attributes.date - a.attributes.date;
+    });
+
+    // 3. Chọn message đầu tiên (mới nhất)
+    const latest = messages[0];
+    const raw = latest.parts.find(p => p.which === '').body;
+
+    // 4. Parse và trả về OTP
+    const parsed = await simpleParser(raw);
+    const match = (parsed.text || '').match(/\b\d{6}\b/);
     await connection.end();
-    return res.status(404).json({ error: 'Không tìm thấy mã OTP mới.' });
+
+    if (match) {
+      return res.json({ otp: match[0] });
+    } else {
+      return res.status(404).json({ error: 'Không tìm thấy mã OTP trong email mới nhất.' });
+    }
 
      } catch (err) {
     console.error('==== CHI TIẾT LỖI IMAP / MAIL ====');
