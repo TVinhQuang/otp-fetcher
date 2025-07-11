@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Kiểm tra mã OTP ChatGPT</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="card">
+    <h1>Kiểm tra mã OTP ChatGPT</h1>
+    <label for="email">Nhập email ChatGPT:</label>
+    <input type="email" id="email" placeholder="your@email"/>
+    <button id="checkBtn">Kiểm tra</button>
+    <p id="result"></p>
+  </div>
+
+  <script>
+    document.getElementById('checkBtn').addEventListener('click', async () => {
+      const email = document.getElementById('email').value.trim();
+      const resultEl = document.getElementById('result');
+      resultEl.textContent = 'Đang kiểm tra…';
+
+      try {
+        const res = await fetch('/get-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          resultEl.textContent = 'OTP mới nhất: ' + data.otp;
+        } else {
+          resultEl.textContent = data.error || 'Không lấy được mã.';
+        }
+      } catch (err) {
+        resultEl.textContent = 'Lỗi kết nối tới server.';
+        console.error(err);
+      }
+    });
+  </script>
+</body>
+</html>
