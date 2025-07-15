@@ -11,6 +11,22 @@ const imaps        = require('imap-simple'); // Kết nối IMAP
 const { simpleParser } = require('mailparser'); // Parse MIME email
 const speakeasy  = require('speakeasy');
 
+// ✨ 3. Thêm hàm này vào ngay dưới các require:
+function getImapHost(email) {
+  const domain = email.split('@')[1].toLowerCase();
+  switch (domain) {
+    case 'gmail.com':
+      return { host: 'imap.gmail.com', port: 993, tls: true };
+    case 'yahoo.com':
+      return { host: 'imap.mail.yahoo.com', port: 993, tls: true };
+    case 'outlook.com':
+    case 'hotmail.com':
+      return { host: 'imap-mail.outlook.com', port: 993, tls: true };
+    default:
+      throw new Error('Chưa hỗ trợ nhà cung cấp mail này.');
+  }
+}
+
 // Lấy CREDENTIALS từ env, parse JSON
 const credentials = JSON.parse(process.env.CREDENTIALS);
 
@@ -48,13 +64,17 @@ app.post('/get-otp', async (req, res) => {
         encoding: 'base32',
         step: 30          // thời gian hợp lệ mặc định 30s
       });
-      return res.json({ otp: token, source: 'totp' });
+      return res.json({ otp: token, source: 'otp' });
     } catch (e) {
-      return res.status(500).json({ error: 'Sinh TOTP lỗi: ' + e.message });
+      return res.status(500).json({ error: 'Sinh otp lỗi: ' + e.message });
     }
   }
 
-  // 2) Ngược lại → fallback đọc mail
+  // 2) Fallback qua IMAP nếu có appPass
+  if(!cred.appPass){
+    return res.status(400).json({ error:'Chưa được set up để đọc mail.' });
+  }
+
   const password = cred.appPass;
   let hostCfg;
   try {
@@ -62,6 +82,7 @@ app.post('/get-otp', async (req, res) => {
   } catch (e) {
     return res.status(400).json({ error: e.message });
   }
+  
   const config = {
     imap: {
       user:        email,
