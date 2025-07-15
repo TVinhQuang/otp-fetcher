@@ -15,6 +15,7 @@
     "dotenv": "^17.2.0",
     "express": "^5.1.0",
     "imap-simple": "^5.1.0",
-    "mailparser": "^3.7.4"
+    "mailparser": "^3.7.4",
+    "speakeasy": "^2.0.0"
   }
 }
