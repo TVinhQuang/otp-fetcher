@@ -1,7 +1,24 @@
 // server.js
 
 // ✨ 1. Load biến môi trường từ .env
-require('dotenv').config();                 
+require('dotenv').config();     
+
+const bcrypt = require('bcrypt');              // 👈 thêm
+
+function isBcryptHash(s) {
+  return typeof s === 'string' && s.startsWith('$2'); // bcrypt thường bắt đầu bằng $2
+}
+
+async function verifyPinFlexible(pin, stored) {
+  if (!stored) return false;
+  if (isBcryptHash(stored)) {
+    // stored là bcrypt-hash -> so sánh bằng bcrypt
+    return bcrypt.compare(pin, stored);
+  }
+  // stored là plaintext -> so sánh trực tiếp
+  return pin === stored;
+}
+
 
 // ✨ 2. Import các thư viện cần thiết
 const express      = require('express');     // Web framework
@@ -46,13 +63,30 @@ app.get('/', (req, res) => {
 // ✨ 6. Route POST /get-otp
 app.post('/get-otp', async (req, res) => {
   // 6.1. Nhận email & password từ body (có thể bỏ nếu dùng ENV cứng)
-  const { email } = req.body;
-  if (!email) {
-    return res.status(400).json({ error: 'Thiếu email.' });
+  const { email, pin } = req.body;
+  if (!email || !pin) {
+    return res.status(400).json({ error: 'Thiếu Email hoặc PIN.' });
   }
 
   const cred = credentials[req.body.email];
   if (!cred) return res.status(400).json({ error:'Email không được hỗ trợ' });
+
+  // XÁC THỰC PIN:
+  // - Ưu tiên pinHash riêng cho email (nếu cấu hình trong .env)
+  // - Nếu không có thì fallback qua GLOBAL_PIN_HASH
+  const pinHash = cred.pinHash;
+  if (!pinHash) {
+    return res.status(403).json({ error: 'Server chưa cấu hình PIN.' });
+  }
+
+  try {
+    const ok = await verifyPinFlexible(pin, pinHash);
+    if (!ok) {
+      return res.status(401).json({ error: 'PIN không đúng.' });
+    }
+  } catch (e) {
+    return res.status(500).json({ error: 'Lỗi xác thực PIN.' });
+  }
 
   const { appPass, totpSecret } = cred; 
 

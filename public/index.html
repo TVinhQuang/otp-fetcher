@@ -11,6 +11,9 @@
     <h1>Kiểm tra mã OTP ChatGPT</h1>
     <label for="email">Nhập email ChatGPT:</label>
     <input type="email" id="email" placeholder="your@email"/>
+    <label for="pin">Nhập mã PIN:</label>
+    <input type="password" id="pin" placeholder="PIN" maxlength="32"/>
+
     <button id="checkBtn">Kiểm tra</button>
     <p id="result"></p>
   </div>
@@ -18,6 +21,7 @@
   <script>
     document.getElementById('checkBtn').addEventListener('click', async () => {
       const email = document.getElementById('email').value.trim();
+      const pin   = document.getElementById('pin').value.trim();
       const resultEl = document.getElementById('result');
       resultEl.textContent = 'Đang kiểm tra…';
 
@@ -25,7 +29,7 @@
         const res = await fetch('/get-otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email })
+          body: JSON.stringify({ email, pin }) // Gửi kèm pin
         });
         const data = await res.json();
         if (res.ok) {
