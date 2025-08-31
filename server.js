@@ -64,12 +64,38 @@ const perAccUsage = new Map(); // key: `${email}|${currentGlobalPin}` -> count
 let rotating = false;
 
 // SMTP transporter
+const EMAIL_DISABLED = String(process.env.EMAIL_DISABLED || 'false').toLowerCase() === 'true';
+
 const smtpTransport = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
   port: Number(process.env.SMTP_PORT || 465),
   secure: String(process.env.SMTP_SECURE || 'true').toLowerCase() !== 'false',
   auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+  // 👇 timeouts để không treo quá lâu
+  connectionTimeout: Number(process.env.SMTP_CONN_TIMEOUT || 8000),
+  greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT || 8000),
+  socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT || 10000),
 });
+
+async function safeSendRotateEmail(triggerEmail, newPin) {
+  if (EMAIL_DISABLED) { 
+    console.log('[PIN] email disabled; skip sending');
+    return;
+  }
+  try {
+    const to = process.env.PIN_NOTIFY_TO;
+    if (!to) { console.warn('[PIN] PIN_NOTIFY_TO missing'); return; }
+    const body = `${triggerEmail}, ${newPin}`;
+    await smtpTransport.sendMail({
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to, subject: 'PIN mới', text: body,
+    });
+    console.log('[PIN] Sent new PIN to', to, '=>', body);
+  } catch (e) {
+    console.warn('[PIN] email send failed:', e.message);
+  }
+}
+
 
 function gen4DigitPin() {
   return String(crypto.randomInt(0, 10000)).padStart(4, '0');
@@ -96,9 +122,13 @@ async function rotateGlobalPin(triggerEmail) {
     const newPin = gen4DigitPin();
     currentGlobalPin = newPin;
     perAccUsage.clear();               // reset bộ đếm cho PIN mới
-    await sendRotateEmail(triggerEmail, newPin);
-    await upsertPinToExcel(triggerEmail, newPin);      // 👈 ghi Excel ngay lập tức
-    await upsertPinToGoogleSheet(triggerEmail, newPin);
+    await Promise.allSettled([
+      safeSendRotateEmail(triggerEmail, newPin),
+      upsertPinToGoogleSheet(triggerEmail, newPin),
+      // (tuỳ) chỉ ghi Excel cục bộ khi có biến cấu hình
+      process.env.PIN_LIST_XLSX ? upsertPinToExcel(triggerEmail, newPin) : Promise.resolve()
+    ]);
+
   } catch (e) {
     console.error('[PIN] Rotate failed:', e.message);
   } finally {
@@ -128,10 +158,12 @@ async function rotatePerAccountPin(email) {
     // reset bộ đếm cho email này
     resetPerEmailUsage(email);
 
-    // gửi mail + ghi Excel (đã có sẵn)
-    await sendRotateEmail(email, newPin);     // body: "<email>, <newPin>"
-    await upsertPinToExcel(email, newPin);    // insert/update theo mail
-    await upsertPinToGoogleSheet(email, newPin);
+    await Promise.allSettled([
+      safeSendRotateEmail(email, newPin),
+      upsertPinToGoogleSheet(email, newPin),
+      process.env.PIN_LIST_XLSX ? upsertPinToExcel(email, newPin) : Promise.resolve()
+    ]);
+
   } catch (e) {
     console.error('[PIN] rotatePerAccountPin failed:', e.message);
   } finally {
